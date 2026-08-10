@@ -41,7 +41,9 @@ registry-map.yaml would pull in all six. That gate is
       `installer_data.json` (artifact-only; R2 upload TODO)
 - [ ] D0 validated against a real asahi image (`bonito:gnome-asahi`, tunaOS#774)
 - [ ] D1 first-boot fisherman agent config (`install-config.json` → unattended `bootc install`)
-- [ ] D2 asahi-installer `--json` machine mode (upstreamable)
+- [x] D2 asahi-installer `--json` machine mode (protocol layer implemented and
+      unit-tested in the [json-machine-mode fork](https://github.com/hanthor/asahi-installer/tree/json-machine-mode);
+      end-to-end macOS verification and upstream review remain)
 - [ ] D3 macOS app (SwiftUI, wraps the asahi-installer Python backend)
 - [ ] D4 recoveryOS walkthrough UX, LUKS, Wi-Fi handoff
 
