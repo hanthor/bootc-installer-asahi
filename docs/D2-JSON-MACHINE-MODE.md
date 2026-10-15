@@ -1,37 +1,37 @@
 # D2 machine-mode contract
 
-The macOS driver invokes the forked `asahi-installer` with `--json` and
-communicates over newline-delimited JSON. This file is the contract owned by
-this repository; the implementation and its unit tests live in the pinned
-backend revision configured by `scripts/test-backend-contract.sh`.
+The macOS driver starts the forked `asahi-installer` with `--json`. The two
+sides then send newline-delimited JSON. This repository owns this contract.
+The implementation and its unit tests are in the backend revision that
+`scripts/test-backend-contract.sh` pins.
 
 ## Framing and routing
 
 - Installer output is one JSON object per line on stdout. Blank lines are
-  harmless and stderr is diagnostic only.
+  harmless. Stderr is for diagnostics only.
 - The driver sends exactly one JSON answer for the most recent `ask` event:
   `{ "id": "...", "value": ... }`.
 - Only one ask is outstanding. The driver must match the answer by `id`, not
-  by arrival order, and must not answer an old request after a retry.
-- An answer is validated by the backend. The driver must display backend
-  validation messages rather than implementing a second APFS or size parser.
+  by the order of arrival. It must not answer an old request after a retry.
+- The backend validates each answer. The driver must show the messages from
+  the backend. It must not have a second parser for APFS or size values.
 
 ## Events
 
-Progress and user-facing output:
+Progress and output for the user:
 
 ```json
 {"event":"message","level":"progress","text":"..."}
 ```
 
-Questions use `kind` values `input`, `password`, `continue`, `yesno`,
-`choice`, and `size`. All include an `id` and `prompt`; `choice` additionally
-includes `options` and an optional `default`, while `size` includes byte-valued
-`min`, `max`, and `total` bounds. A size answer uses the backend grammar (for
-example `50%`, `20GB`, or `max`) so bounds remain authoritative in one place.
+Questions use these `kind` values: `input`, `password`, `continue`, `yesno`,
+`choice`, and `size`. Each question has an `id` and a `prompt`. A `choice`
+question also has `options` and an optional `default`. A `size` question has
+the `min`, `max`, and `total` bounds in bytes. A size answer uses the backend
+grammar (for example `50%`, `20GB`, or `max`). Thus the bounds have one owner.
 
-The final protocol event is exactly one `result`; no later JSON event is
-allowed:
+The last protocol event is exactly one `result`. The backend sends no JSON
+event after it:
 
 ```json
 {"event":"result","status":"success","efiPartUuid":"..."}
@@ -39,26 +39,26 @@ allowed:
 {"event":"result","status":"aborted","reason":"..."}
 ```
 
-The driver reports success only when both the final status is `success` and
-the subprocess exits zero. Missing results, a non-zero exit, or any final
-status other than `success` is a failed install. `aborted` is an intentional
-user exit and is never success. The EFI PARTUUID is the stable handoff to the
-first-boot agent; a macOS device name must not cross this boundary.
+The driver reports success only when the last status is `success` and the
+subprocess exits zero. A missing result, a non-zero exit, or a different last
+status is a failed install. `aborted` means that the user stopped the install.
+It is never a success. The EFI PARTUUID is the stable handoff to the
+first-boot agent. A macOS device name must not cross this boundary.
 
-The CI process check injects a constructor failure and verifies the negative
-path at the process boundary: exactly one failure result, no non-JSON stdout,
-and the result as the last event before a non-zero exit. This catches a driver
-race or a backend exception handler that would otherwise make a partial run
-look complete.
+A CI check at the process boundary causes a failure in the constructor. Then
+it makes sure that the backend sends one failure result and no stdout that is
+not JSON. The result must be the last event, and the exit code must not be
+zero. This check finds a driver race or a backend exception handler that
+can make a partial run look complete.
 
 ## Compatibility and safety
 
-Default TTY mode remains unchanged. The backend owns APFS resize, partition
-creation, firmware extraction, m1n1 preparation, and blessing; the driver
-only renders events, collects answers, and observes the terminal result. The
-contract is pinned and checked in CI because changing an event field or result
-rule without updating the driver can lead to a misleading “installed” UI.
+The default TTY mode does not change. The backend does these steps: APFS
+resize, partition creation, firmware extraction, m1n1 preparation, and bless.
+The driver only shows events, collects answers, and reads the last result.
+CI pins and checks the contract. If an event field or result rule changes and
+the driver does not, the UI can show "installed" for an install that failed.
 
-The full diskutil/bless/bputil path still requires a real Apple Silicon host.
-Linux CI proves the protocol layer and injected-failure terminal behavior,
-not hardware installation.
+The full diskutil/bless/bputil path still needs a real Mac with Apple
+Silicon. Linux CI proves the protocol layer and the behavior of the last
+result after an injected failure. It does not prove a hardware install.
